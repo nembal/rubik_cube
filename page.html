@@ -3,45 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3x3x3 Rubik's Cube - Raycast Select</title> <style>
+    <title>3x3x3 Rubik's Cube - Normal Check</title> <style>
+        /* --- Styles unchanged --- */
         body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #222; color: #fff; }
-        canvas { display: block; }
+        canvas { display: block; touch-action: none; }
         #ui-controls { position: absolute; top: 10px; left: 10px; background: rgba(0, 0, 0, 0.7); padding: 10px; border-radius: 5px; display: grid; grid-template-columns: repeat(2, auto); gap: 10px 15px; z-index: 10; }
         #ui-controls button { padding: 8px 12px; font-size: 14px; cursor: pointer; background-color: #444; color: white; border: 1px solid #666; border-radius: 3px; min-width: 50px; text-align: center; }
         #ui-controls button:hover { background-color: #555; }
         #ui-controls button:active { background-color: #333; }
         #ui-controls button:disabled { background-color: #333; color: #777; cursor: not-allowed; }
-        #ui-controls .label {
-            grid-column: span 1;
-            text-align: center;
-            font-weight: bold;
-            margin-bottom: 5px;
-            padding: 4px 0;
-            border-radius: 3px;
-            border: 1px solid transparent;
-            transition: background-color 0.3s, border-color 0.3s;
-        }
-        #ui-controls .label.mode-active {
-            background-color: #3498db;
-            border-color: #2980b9;
-        }
-        #scramble-button, #undo-button, #reset-button {
-            grid-column: span 2;
-            margin-top: 5px;
-        }
+        #ui-controls .label { grid-column: span 1; text-align: center; font-weight: bold; margin-bottom: 5px; padding: 4px 0; border-radius: 3px; border: 1px solid transparent; transition: background-color 0.3s, border-color 0.3s; }
+        #ui-controls .label.mode-active { background-color: #3498db; border-color: #2980b9; }
+        #scramble-button, #undo-button, #reset-button { grid-column: span 2; margin-top: 5px; }
         #scramble-button { margin-top: 10px; background-color: #c0392b; }
         #scramble-button:hover { background-color: #e74c3c; }
-        #undo-button {
-            background-color: #95a5a6;
-        }
-        #undo-button:hover:not(:disabled) {
-            background-color: #7f8c8d;
-        }
+        #undo-button { background-color: #95a5a6; }
+        #undo-button:hover:not(:disabled) { background-color: #7f8c8d; }
         #reset-button { background-color: #3498db; }
         #reset-button:hover { background-color: #5dade2; }
-
         #timer-display { position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.7); padding: 10px 15px; border-radius: 5px; font-size: 24px; font-weight: bold; color: #fff; z-index: 10; min-width: 80px; text-align: right; }
-
         #scramble-container { position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 8px; border-radius: 3px; max-width: calc(100% - 40px); line-height: 1.6; z-index: 10; }
         #reveal-scramble-button { display: block; margin-bottom: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; background-color: #f39c12; color: white; border: 1px solid #d35400; border-radius: 3px; width: fit-content; }
         #reveal-scramble-button:hover { background-color: #e67e22; }
@@ -51,12 +31,7 @@
         .scramble-move { cursor: pointer; padding: 2px 4px; margin: 0 2px; border-radius: 2px; display: inline-block; border: 1px solid transparent; transition: background-color 0.2s, border-color 0.2s; }
         .scramble-move:hover { background-color: rgba(255, 255, 255, 0.2); border-color: rgba(255, 255, 255, 0.4); }
         .scramble-move.active { background-color: rgba(70, 130, 180, 0.5); border-color: rgba(70, 130, 180, 0.8); }
-        /* Highlight for selected face buttons */
-        #ui-controls button.button-highlighted {
-            border-color: #3498db;
-            box-shadow: 0 0 5px rgba(52, 152, 219, 0.7);
-            background-color: #555;
-        }
+        #ui-controls button.button-highlighted { border-color: #3498db; box-shadow: 0 0 5px rgba(52, 152, 219, 0.7); background-color: #555; }
     </style>
 </head>
 <body>
@@ -78,6 +53,7 @@
         <button id="reveal-scramble-button">Reveal Scramble<br>(Disables Timer)</button>
         <span>Scramble: </span><span id="scramble-sequence-wrapper">(None)</span>
     </div>
+
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script type="importmap">
@@ -99,6 +75,13 @@
         const LABEL_OFFSET = HALF_TOTAL_CUBE_DIM + CUBIE_SIZE * 0.6;
         const LABEL_SIZE = TOTAL_CUBE_DIM * 0.3;
         const COLORS = { WHITE: 0xffffff, YELLOW: 0xffff00, BLUE: 0x0000ff, GREEN: 0x00ff00, RED: 0xff0000, ORANGE: 0xffa500, BLACK: 0x1a1a1a, LABEL: 0xdddddd };
+        const SELECTED_LABEL_COLOR = new THREE.Color(0xffaa00);
+        const FACE_NORMALS = { // World space normals for fixed labels
+             F: new THREE.Vector3(0, 0, 1), B: new THREE.Vector3(0, 0, -1),
+             U: new THREE.Vector3(0, 1, 0), D: new THREE.Vector3(0, -1, 0),
+             R: new THREE.Vector3(1, 0, 0), L: new THREE.Vector3(-1, 0, 0)
+        };
+        const VISIBILITY_DOT_THRESHOLD = 0.1; // Allow slightly glancing angles
 
         // --- Global Variables ---
         let scene, camera, renderer, controls;
@@ -124,290 +107,179 @@
         let isDraggingForRotation = false;
         let dragStartX = 0, dragStartY = 0;
         let dragThreshold = 0.05;
-        const SELECTED_LABEL_COLOR = new THREE.Color(0xffaa00);
 
         // --- Core Functions ---
-        function init() {
-            //console.log("Initializing..."); // Reduced log
-            scene = new THREE.Scene(); scene.background = new THREE.Color(0x222222); scene.add(pivot);
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000); camera.position.set(TOTAL_CUBE_DIM * 1.5, TOTAL_CUBE_DIM * 1.5, TOTAL_CUBE_DIM * 1.5); camera.lookAt(0, 0, 0);
-            renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(window.innerWidth, window.innerHeight); document.body.appendChild(renderer.domElement);
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambientLight);
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); directionalLight.position.set(5, 10, 7.5); scene.add(directionalLight);
-            controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.target.set(0, 0, 0);
+        function init() { /* ... unchanged ... */ scene = new THREE.Scene(); scene.background = new THREE.Color(0x222222); scene.add(pivot); camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000); camera.position.set(TOTAL_CUBE_DIM * 1.5, TOTAL_CUBE_DIM * 1.5, TOTAL_CUBE_DIM * 1.5); camera.lookAt(0, 0, 0); renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(window.innerWidth, window.innerHeight); document.body.appendChild(renderer.domElement); const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambientLight); const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); directionalLight.position.set(5, 10, 7.5); scene.add(directionalLight); controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.target.set(0, 0, 0); timerDisplay = document.getElementById('timer-display'); scrambleContainer = document.getElementById('scramble-container'); scrambleSequenceWrapper = document.getElementById('scramble-sequence-wrapper'); revealScrambleButton = document.getElementById('reveal-scramble-button'); undoButton = document.getElementById('undo-button'); labelCW = document.getElementById('label-cw'); labelCCW = document.getElementById('label-ccw'); createRubiksCube(); createAllFaceLabels(); setupUI(); if (scrambleContainer) scrambleContainer.addEventListener('click', handleScrambleMoveClick); if (revealScrambleButton) revealScrambleButton.addEventListener('click', revealScramble); renderer.domElement.addEventListener('pointerdown', onPointerDown, false); renderer.domElement.addEventListener('pointermove', onPointerMove, false); renderer.domElement.addEventListener('pointerup', onPointerUp, false); window.addEventListener('keydown', handleKeyDown); window.addEventListener('resize', onWindowResize, false); resetTimerDisplay(); applyScrambleBlur(false); if (revealScrambleButton) revealScrambleButton.disabled = true; if (undoButton) undoButton.disabled = true; updateModeIndicator(); updateUIButtonHighlighting(); console.log("Initialization Complete."); animate(); }
+        function createRubiksCube() { /* ... unchanged ... */ const cubieGeometry = new THREE.BoxGeometry(CUBIE_SIZE, CUBIE_SIZE, CUBIE_SIZE); initialCubieStates = []; allCubies = []; const objectsToRemove = []; scene.children.forEach(child => { if (child.isMesh && child.geometry === cubieGeometry) { objectsToRemove.push(child); } }); objectsToRemove.forEach(child => { scene.remove(child); }); for (let x = -1; x <= 1; x++) { for (let y = -1; y <= 1; y++) { for (let z = -1; z <= 1; z++) { if (x === 0 && y === 0 && z === 0) continue; const materials = [ (x === 1) ? new THREE.MeshStandardMaterial({ color: COLORS.RED }) : new THREE.MeshStandardMaterial({ color: COLORS.BLACK }),(x === -1) ? new THREE.MeshStandardMaterial({ color: COLORS.ORANGE }) : new THREE.MeshStandardMaterial({ color: COLORS.BLACK }),(y === 1) ? new THREE.MeshStandardMaterial({ color: COLORS.WHITE }) : new THREE.MeshStandardMaterial({ color: COLORS.BLACK }),(y === -1) ? new THREE.MeshStandardMaterial({ color: COLORS.YELLOW }) : new THREE.MeshStandardMaterial({ color: COLORS.BLACK }),(z === 1) ? new THREE.MeshStandardMaterial({ color: COLORS.BLUE }) : new THREE.MeshStandardMaterial({ color: COLORS.BLACK }),(z === -1) ? new THREE.MeshStandardMaterial({ color: COLORS.GREEN }) : new THREE.MeshStandardMaterial({ color: COLORS.BLACK }),]; const cubie = new THREE.Mesh(cubieGeometry, materials); const position = new THREE.Vector3(x*(CUBIE_SIZE+GAP), y*(CUBIE_SIZE+GAP), z*(CUBIE_SIZE+GAP)); cubie.position.copy(position); cubie.updateMatrixWorld(); initialCubieStates.push({ mesh: cubie, position: cubie.position.clone(), quaternion: cubie.quaternion.clone() }); scene.add(cubie); allCubies.push(cubie); }}} }
+        function createAllFaceLabels() { /* ... unchanged ... */ faceLabels.forEach(label => scene.remove(label)); faceLabels = []; const labelColor = new THREE.Color(COLORS.LABEL); const labelsData = [ { text: 'F', position: new THREE.Vector3(0, 0, LABEL_OFFSET) }, { text: 'B', position: new THREE.Vector3(0, 0, -LABEL_OFFSET) }, { text: 'U', position: new THREE.Vector3(0, LABEL_OFFSET, 0) }, { text: 'D', position: new THREE.Vector3(0, -LABEL_OFFSET, 0) }, { text: 'R', position: new THREE.Vector3(LABEL_OFFSET, 0, 0) }, { text: 'L', position: new THREE.Vector3(-LABEL_OFFSET, 0, 0) }, ]; labelsData.forEach(data => { const label = createFaceLabel(data.text, data.position, labelColor, LABEL_SIZE); faceLabels.push(label); scene.add(label); }); }
+        function createFaceLabel(text, position, color, size) { /* ... unchanged ... */ const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); const fontFace = "Arial"; const fontSize = 64; context.font = `Bold ${fontSize}px ${fontFace}`; const textWidth = context.measureText(text).width; canvas.width = textWidth + 20; canvas.height = fontSize + 20; context.font = `Bold ${fontSize}px ${fontFace}`; context.fillStyle = `rgba(${color.r * 255}, ${color.g * 255}, ${color.b * 255}, 1.0)`; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, canvas.width / 2, canvas.height / 2); const texture = new THREE.CanvasTexture(canvas); texture.needsUpdate = true; const material = new THREE.SpriteMaterial({ map: texture, transparent: true, color: color.clone() }); const sprite = new THREE.Sprite(material); sprite.position.copy(position); const aspect = canvas.width / canvas.height; sprite.scale.set(size * aspect, size, 1); sprite.userData.face = text; return sprite; }
+        function clearFaceSelection() {
+            if (selectedFace) {
+                const selectedLabel = faceLabels.find(label => label.userData.face === selectedFace);
+                if (selectedLabel) selectedLabel.material.color.set(COLORS.LABEL);
+            }
+            selectedFace = null;
+            updateUIButtonHighlighting();
+            isDraggingForRotation = false;
+        }
 
-            // Get UI elements now that HTML is parsed
-            timerDisplay = document.getElementById('timer-display');
-            scrambleContainer = document.getElementById('scramble-container');
-            scrambleSequenceWrapper = document.getElementById('scramble-sequence-wrapper');
-            revealScrambleButton = document.getElementById('reveal-scramble-button');
-            undoButton = document.getElementById('undo-button');
-            labelCW = document.getElementById('label-cw');
-            labelCCW = document.getElementById('label-ccw');
+        function resetCube() { /* ... unchanged, includes clearFaceSelection ... */ if (isAnimating) { if (currentAnimation) { const childrenToDetach = [...pivot.children]; childrenToDetach.forEach(cubie => scene.attach(cubie)); pivot.rotation.set(0,0,0); } currentAnimation = null; isAnimating = false; animationQueue = []; } if (initialCubieStates.length === 0) return; initialCubieStates.forEach((state) => { if (!state || !state.mesh) return; if (state.mesh.parent !== scene) scene.attach(state.mesh); state.mesh.position.copy(state.position); state.mesh.quaternion.copy(state.quaternion); state.mesh.updateMatrixWorld(); }); stopTimer(); resetTimerDisplay(); updateScrambleDisplay([]); applyScrambleBlur(false); if (revealScrambleButton) revealScrambleButton.disabled = true; isScrambleRevealed = false; awaitingFirstMove = false; wasScrambledSinceLastSolve = false; moveHistory = []; if (undoButton) undoButton.disabled = true; isCCWMode = false; clearFaceSelection(); updateModeIndicator(); enableUI(true); renderer.render(scene, camera); }
+        function setupUI() { /* ... unchanged, includes clearFaceSelection on button click ... */ document.querySelectorAll('#ui-controls button[data-face]').forEach(button => { button.addEventListener('click', () => { if (isAnimating) return; const move = button.getAttribute('data-face'); if (move) { isCCWMode = move.includes("'"); updateModeIndicator(); queueMove(move); clearFaceSelection(); } }); }); document.getElementById('scramble-button').addEventListener('click', () => { if (isAnimating) return; scrambleCube(); }); document.getElementById('reset-button').addEventListener('click', () => { if (isAnimating) return; resetCube(); }); if (undoButton) { undoButton.addEventListener('click', () => { if (isAnimating) return; undoMove(); }); } else { console.error("Undo button element not found in setupUI."); } }
+        function queueMove(moveNotation, isUndo = false) { /* ... unchanged ... */ if (awaitingFirstMove && !isTimerRunning && !isScrambleRevealed) { startTimer(); awaitingFirstMove = false; } if (!isUndo) { moveHistory.push(moveNotation); if(undoButton) undoButton.disabled = false; } animationQueue.push(moveNotation); if (!isAnimating) startNextAnimation(); }
+        function startNextAnimation() { /* ... unchanged ... */ if (animationQueue.length === 0) { isAnimating = false; enableUI(true); checkSolveState(); return; } isAnimating = true; enableUI(false); const move = animationQueue.shift(); applyMove(move, false); }
+        function generateScramble(length = SCRAMBLE_LENGTH) { /* ... unchanged ... */ const faces = ['F', 'B', 'U', 'D', 'L', 'R']; const modifiers = ['', "'", '2']; const axisMap = { F: 'z', B: 'z', U: 'y', D: 'y', L: 'x', R: 'x' }; let scramble = []; let lastAxis = null; for (let i = 0; i < length; i++) { let currentFace; let currentAxis; do { currentFace = faces[Math.floor(Math.random() * faces.length)]; currentAxis = axisMap[currentFace]; } while (currentAxis === lastAxis); const modifier = modifiers[Math.floor(Math.random() * modifiers.length)]; const move = currentFace + modifier; scramble.push(move); lastAxis = currentAxis; } /*console.log("Generated Scramble:", scramble.join(' '));*/ return scramble; }
+        function scrambleCube(length = SCRAMBLE_LENGTH) { /* ... unchanged, includes clearFaceSelection ... */ if (isAnimating) return; resetCube(); const sequence = generateScramble(length); if (!sequence || sequence.length === 0) return; currentScrambleSequence = sequence; updateScrambleDisplay(sequence); applyScrambleBlur(true); if (revealScrambleButton) revealScrambleButton.disabled = false; isScrambleRevealed = false; isCCWMode = false; updateModeIndicator(); enableUI(false); sequence.forEach((move) => { applyMove(move, true); }); renderer.render(scene, camera); enableUI(true); awaitingFirstMove = true; wasScrambledSinceLastSolve = true; moveHistory = []; if (undoButton) undoButton.disabled = true; clearFaceSelection(); }
 
-            createRubiksCube();
-            createAllFaceLabels();
-            setupUI(); // Setup listeners AFTER elements are assigned
-
-            // Attach other listeners
-            if (scrambleContainer) {
-                 scrambleContainer.addEventListener('click', handleScrambleMoveClick);
-             } else { console.error("Scramble container not found for listener"); }
+        function startTimer() { /* ... unchanged ... */ if (isTimerRunning || isScrambleRevealed) return; console.log("Timer started!"); isTimerRunning = true; timerStartTime = performance.now(); timerIntervalId = setInterval(updateTimerDisplay, 50); if (revealScrambleButton) revealScrambleButton.disabled = false; }
+        function stopTimer() { /* ... unchanged ... */ if (isTimerRunning) { isTimerRunning = false; clearInterval(timerIntervalId); timerIntervalId = null; updateTimerDisplay(); } awaitingFirstMove = false; }
+        function resetTimerDisplay() { /* ... unchanged ... */ if (timerDisplay) timerDisplay.textContent = "0.00"; }
+        function updateTimerDisplay() { /* ... unchanged ... */ if (!timerDisplay) return; let elapsedTime = 0; if (isTimerRunning) { elapsedTime = (performance.now() - timerStartTime) / 1000; } else if (timerStartTime > 0 && !timerIntervalId) { return; } timerDisplay.textContent = elapsedTime.toFixed(2); }
+        function updateScrambleDisplay(sequence, activeIndex = -1) { /* ... unchanged ... */ if (!scrambleContainer || !scrambleSequenceWrapper) return; const labelSpan = scrambleContainer.querySelector('span:first-child'); scrambleSequenceWrapper.innerHTML = ''; if (!sequence || sequence.length === 0) { scrambleSequenceWrapper.innerHTML = '(None)'; if (labelSpan) labelSpan.style.display = 'inline'; } else { if (labelSpan) labelSpan.style.display = 'inline'; sequence.forEach((move, index) => { const span = document.createElement('span'); span.classList.add('scramble-move'); span.textContent = move; span.dataset.index = index; if (index === activeIndex) span.classList.add('active'); scrambleSequenceWrapper.appendChild(span); }); } }
+        function handleScrambleMoveClick(event) { /* ... unchanged ... */ if (isAnimating) return; const target = event.target; if (target.classList.contains('scramble-move') && target.id !== 'reveal-scramble-button') { const indexToApply = parseInt(target.dataset.index, 10); if (isNaN(indexToApply) || !currentScrambleSequence || currentScrambleSequence.length === 0) return; console.log(`Applying scramble up to step ${indexToApply}`); resetCube(); applyScrambleBlur(!isScrambleRevealed); if (revealScrambleButton) revealScrambleButton.disabled = isScrambleRevealed; wasScrambledSinceLastSolve = true; awaitingFirstMove = true; isCCWMode = false; updateModeIndicator(); enableUI(false); const partialSequence = currentScrambleSequence.slice(0, indexToApply + 1); partialSequence.forEach(move => applyMove(move, true)); renderer.render(scene, camera); enableUI(true); updateScrambleDisplay(currentScrambleSequence, indexToApply); } }
+        function applyScrambleBlur(shouldBeBlurred) { /* ... unchanged ... */ if (!scrambleSequenceWrapper) return; if (shouldBeBlurred) scrambleSequenceWrapper.classList.add('blurred'); else scrambleSequenceWrapper.classList.remove('blurred'); }
+        function revealScramble() { /* ... unchanged ... */ if (isScrambleRevealed || !revealScrambleButton) return; isScrambleRevealed = true; applyScrambleBlur(false); stopTimer(); revealScrambleButton.disabled = true; awaitingFirstMove = false; }
+        function isSolved() { /* ... unchanged ... */ if (initialCubieStates.length !== allCubies.length || allCubies.length === 0) return false; for (let i = 0; i < initialCubieStates.length; i++) { const initialState = initialCubieStates[i]; const currentCubie = initialState.mesh; if (currentCubie.position.distanceTo(initialState.position) > SOLVED_POS_EPSILON) return false; const currentQuat = currentCubie.quaternion.clone().normalize(); const initialQuat = initialState.quaternion.clone().normalize(); if (currentQuat.angleTo(initialQuat) > SOLVED_QUAT_EPSILON) return false; } return true; }
+        function checkSolveState() { /* ... unchanged ... */ if (wasScrambledSinceLastSolve && isSolved()) { console.log("Cube Solved!"); stopTimer(); triggerConfetti(); wasScrambledSinceLastSolve = false; awaitingFirstMove = false; } }
+        function triggerConfetti() { /* ... unchanged ... */ if (typeof confetti === 'function') { confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } }); } else { console.warn("Confetti function not found."); } }
+        function applyMove(moveNotation, instant = false) { /* ... unchanged ... */ let axis = null, layer = 0, direction = 1, angleMultiplier = 1; const face = moveNotation.charAt(0), modifier = moveNotation.substring(1); if (modifier === "'") direction = -1; else if (modifier === '2') angleMultiplier = 2; switch (face) { case 'F': axis = 'z'; layer = 1; direction *= 1; break; case 'B': axis = 'z'; layer = -1; direction *= -1; break; case 'U': axis = 'y'; layer = 1; direction *= 1; break; case 'D': axis = 'y'; layer = -1; direction *= -1; break; case 'R': axis = 'x'; layer = 1; direction *= 1; break; case 'L': axis = 'x'; layer = -1; direction *= -1; break; default: console.warn("Unknown move face:", face); if (!instant) startNextAnimation(); return; } const cubiesToRotate = []; const layerPositionThreshold = (CUBIE_SIZE + GAP) * layer; const epsilon = 0.01; if (allCubies.length === 0) { console.error("Cannot apply move: allCubies array is empty!"); return; } allCubies.forEach(cubie => { const position = new THREE.Vector3(); cubie.getWorldPosition(position); let checkCoord; if (axis === 'x') checkCoord = position.x; else if (axis === 'y') checkCoord = position.y; else checkCoord = position.z; if (Math.abs(checkCoord - layerPositionThreshold) < epsilon) cubiesToRotate.push(cubie); }); if (cubiesToRotate.length === 0) { if (!instant) startNextAnimation(); return; } const targetAngle = direction * ROTATION_ANGLE * angleMultiplier; const rotationAxisVec = new THREE.Vector3(axis === 'x' ? 1 : 0, axis === 'y' ? 1 : 0, axis === 'z' ? 1 : 0); pivot.position.set(0, 0, 0); pivot.rotation.set(0,0,0); pivot.updateMatrixWorld(true); cubiesToRotate.forEach(cubie => pivot.attach(cubie)); if (instant) { pivot.rotateOnWorldAxis(rotationAxisVec, targetAngle); pivot.updateMatrixWorld(true); const childrenToDetach = [...pivot.children]; childrenToDetach.forEach(cubie => scene.attach(cubie)); } else { isAnimating = true; enableUI(false); currentAnimation = { targetAngle, currentAngle: 0, rotationAxis: rotationAxisVec, cubies: cubiesToRotate }; } }
+        function animate() { /* ... unchanged ... */ requestAnimationFrame(animate); controls.update(); if (currentAnimation) { const { targetAngle, rotationAxis } = currentAnimation; let { currentAngle } = currentAnimation; const deltaAngle = Math.sign(targetAngle) * ANIMATION_SPEED; const remainingAngle = targetAngle - currentAngle; const rotateBy = Math.abs(deltaAngle) > Math.abs(remainingAngle) ? remainingAngle : deltaAngle; pivot.rotateOnWorldAxis(rotationAxis, rotateBy); currentAnimation.currentAngle += rotateBy; if (Math.abs(currentAnimation.currentAngle - targetAngle) < 0.001) { pivot.updateMatrixWorld(true); const childrenToDetach = [...pivot.children]; childrenToDetach.forEach(cubie => scene.attach(cubie)); pivot.rotation.set(0,0,0); currentAnimation = null; startNextAnimation(); } } renderer.render(scene, camera); }
+        function enableUI(enabled) {
+            if (enabled) {
+                console.log(`enableUI(${enabled}) called. History: ${moveHistory.length}, Animating: ${isAnimating}`);
+            }
+            
+            document.querySelectorAll('#ui-controls button').forEach(button => {
+                if (button.id === 'undo-button') {
+                    button.disabled = !enabled || moveHistory.length === 0;
+                } else {
+                    button.disabled = !enabled;
+                }
+            });
+            
+            controls.enabled = enabled;
             if (revealScrambleButton) {
-                 revealScrambleButton.addEventListener('click', revealScramble);
-             } // Undo listener is in setupUI
-
-            // Add pointer listeners for raycasting
-            renderer.domElement.addEventListener('pointerdown', onPointerDown);
-            renderer.domElement.addEventListener('pointerup', onPointerUp);
-            renderer.domElement.addEventListener('pointermove', onPointerMove);
-
-            window.addEventListener('keydown', handleKeyDown);
-            window.addEventListener('resize', onWindowResize, false);
-
-            // Initial state
-            resetTimerDisplay();
-            applyScrambleBlur(false);
-            if (revealScrambleButton) revealScrambleButton.disabled = true;
-            if (undoButton) undoButton.disabled = true;
-            updateModeIndicator();
-            updateUIButtonHighlighting(); // Init highlights (none)
-
-            console.log("Initialization Complete."); // Reduced log
-            animate();
+                revealScrambleButton.disabled = !enabled || isScrambleRevealed || !wasScrambledSinceLastSolve;
+            }
         }
+        function onWindowResize() { /* ... unchanged ... */ camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+        function updateModeIndicator() { /* ... unchanged ... */ if (!labelCW || !labelCCW) return; if (isCCWMode) { labelCCW.classList.add('mode-active'); labelCW.classList.remove('mode-active'); } else { labelCW.classList.add('mode-active'); labelCCW.classList.remove('mode-active'); } }
+        function updateUIButtonHighlighting() { /* ... unchanged ... */ document.querySelectorAll('#ui-controls button[data-face]').forEach(btn => { btn.classList.remove('button-highlighted'); }); if (selectedFace) { const cwButton = document.querySelector(`#ui-controls button[data-face="${selectedFace}"]`); const ccwButton = document.querySelector(`#ui-controls button[data-face="${selectedFace}'"]`); if (cwButton) cwButton.classList.add('button-highlighted'); if (ccwButton) ccwButton.classList.add('button-highlighted'); } }
+        function handleKeyDown(event) { /* ... unchanged ... */ if (isAnimating) return; const isUndoKey = (event.ctrlKey && event.key.toUpperCase() === 'Z') || (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toUpperCase() === 'Z') || event.code === 'Space'; if (isUndoKey) { const activeElement = document.activeElement; const isTyping = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable); if (!isTyping) { event.preventDefault(); undoMove(); return; } } if (event.key === 'Shift') { if (!event.ctrlKey && !event.metaKey && !event.altKey) { isCCWMode = !isCCWMode; updateModeIndicator(); event.preventDefault(); } return; } if (event.metaKey || event.ctrlKey || event.altKey || event.key === 'Control' || event.key === 'Alt' || event.key === 'Meta') { return; } let moveNotation = null; const key = event.key.toUpperCase(); let baseFace = null; switch (key) { case 'F': baseFace = 'F'; break; case 'B': baseFace = 'B'; break; case 'U': baseFace = 'U'; break; case 'D': baseFace = 'D'; break; case 'L': baseFace = 'L'; break; case 'R': baseFace = 'R'; break; } if (baseFace) { moveNotation = isCCWMode ? baseFace + "'" : baseFace; event.preventDefault(); queueMove(moveNotation); } }
+        function getInverseMove(move) { /* ... unchanged ... */ if (!move) return null; if (move.includes('2')) return move; else if (move.includes("'")) return move.replace("'", ""); else return move + "'"; }
+        function undoMove() { /* ... unchanged ... */ console.log("Executing undoMove function..."); if (isAnimating || moveHistory.length === 0) { if (undoButton) undoButton.disabled = moveHistory.length === 0; return; } const lastMove = moveHistory.pop(); const inverseMove = getInverseMove(lastMove); if (inverseMove) { console.log("Queueing inverse move for animation:", inverseMove); isCCWMode = inverseMove.includes("'"); updateModeIndicator(); queueMove(inverseMove, true); clearFaceSelection(); } else { console.error("Could not determine inverse for:", lastMove); if (undoButton) undoButton.disabled = moveHistory.length === 0; } if (undoButton) undoButton.disabled = moveHistory.length === 0; }
 
-        function createRubiksCube() { /* ... Function unchanged ... */ const cubieGeometry = new THREE.BoxGeometry(CUBIE_SIZE, CUBIE_SIZE, CUBIE_SIZE); initialCubieStates = []; allCubies = []; const objectsToRemove = []; scene.children.forEach(child => { if (child.isMesh && child.geometry === cubieGeometry) { objectsToRemove.push(child); } }); objectsToRemove.forEach(child => { scene.remove(child); }); for (let x = -1; x <= 1; x++) { for (let y = -1; y <= 1; y++) { for (let z = -1; z <= 1; z++) { if (x === 0 && y === 0 && z === 0) continue; const materials = [ (x === 1) ? new THREE.MeshStandardMaterial({ color: COLORS.RED }) : new THREE.MeshStandardMaterial({ color: COLORS.BLACK }),(x === -1) ? new THREE.MeshStandardMaterial({ color: COLORS.ORANGE }) : new THREE.MeshStandardMaterial({ color: COLORS.BLACK }),(y === 1) ? new THREE.MeshStandardMaterial({ color: COLORS.WHITE }) : new THREE.MeshStandardMaterial({ color: COLORS.BLACK }),(y === -1) ? new THREE.MeshStandardMaterial({ color: COLORS.YELLOW }) : new THREE.MeshStandardMaterial({ color: COLORS.BLACK }),(z === 1) ? new THREE.MeshStandardMaterial({ color: COLORS.BLUE }) : new THREE.MeshStandardMaterial({ color: COLORS.BLACK }),(z === -1) ? new THREE.MeshStandardMaterial({ color: COLORS.GREEN }) : new THREE.MeshStandardMaterial({ color: COLORS.BLACK }),]; const cubie = new THREE.Mesh(cubieGeometry, materials); const position = new THREE.Vector3(x*(CUBIE_SIZE+GAP), y*(CUBIE_SIZE+GAP), z*(CUBIE_SIZE+GAP)); cubie.position.copy(position); cubie.updateMatrixWorld(); initialCubieStates.push({ mesh: cubie, position: cubie.position.clone(), quaternion: cubie.quaternion.clone() }); scene.add(cubie); allCubies.push(cubie); }}} }
-        function createAllFaceLabels() { /* ... Function unchanged ... */ faceLabels.forEach(label => scene.remove(label)); faceLabels = []; const labelColor = new THREE.Color(COLORS.LABEL); const labelsData = [ { text: 'F', position: new THREE.Vector3(0, 0, LABEL_OFFSET) }, { text: 'B', position: new THREE.Vector3(0, 0, -LABEL_OFFSET) }, { text: 'U', position: new THREE.Vector3(0, LABEL_OFFSET, 0) }, { text: 'D', position: new THREE.Vector3(0, -LABEL_OFFSET, 0) }, { text: 'R', position: new THREE.Vector3(LABEL_OFFSET, 0, 0) }, { text: 'L', position: new THREE.Vector3(-LABEL_OFFSET, 0, 0) }, ]; labelsData.forEach(data => { const label = createFaceLabel(data.text, data.position, labelColor, LABEL_SIZE); faceLabels.push(label); scene.add(label); }); }
-        function createFaceLabel(text, position, color, size) { /* ... Function unchanged ... */ const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); const fontFace = "Arial"; const fontSize = 64; context.font = `Bold ${fontSize}px ${fontFace}`; const textWidth = context.measureText(text).width; canvas.width = textWidth + 20; canvas.height = fontSize + 20; context.font = `Bold ${fontSize}px ${fontFace}`; context.fillStyle = `rgba(${color.r * 255}, ${color.g * 255}, ${color.b * 255}, 1.0)`; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(text, canvas.width / 2, canvas.height / 2); const texture = new THREE.CanvasTexture(canvas); texture.needsUpdate = true; const material = new THREE.SpriteMaterial({ map: texture, transparent: true, }); const sprite = new THREE.Sprite(material); sprite.position.copy(position); const aspect = canvas.width / canvas.height; sprite.scale.set(size * aspect, size, 1); sprite.userData.face = text; return sprite; }
+        // --- Pointer Handlers ---
 
-        function resetCube() {
-             if (isAnimating) { if (currentAnimation) { const childrenToDetach = [...pivot.children]; childrenToDetach.forEach(cubie => scene.attach(cubie)); pivot.rotation.set(0,0,0); } currentAnimation = null; isAnimating = false; animationQueue = []; }
-             if (initialCubieStates.length === 0) { console.error("Cannot reset, initial state not found!"); return; }
-             initialCubieStates.forEach((state, index) => { if (!state || !state.mesh) { console.error(`Invalid initial state at index ${index}`); return; } if (state.mesh.parent !== scene) scene.attach(state.mesh); state.mesh.position.copy(state.position); state.mesh.quaternion.copy(state.quaternion); state.mesh.updateMatrixWorld(); });
-             stopTimer(); resetTimerDisplay(); updateScrambleDisplay([]); applyScrambleBlur(false); if (revealScrambleButton) revealScrambleButton.disabled = true; isScrambleRevealed = false; awaitingFirstMove = false; wasScrambledSinceLastSolve = false;
-             moveHistory = [];
-             if (undoButton) undoButton.disabled = true;
-             isCCWMode = false;
-             selectedFace = null; // Clear selection
-             updateModeIndicator();
-             updateUIButtonHighlighting(); // Clear highlights
-             enableUI(true); renderer.render(scene, camera);
-             clearFaceSelection();
-        }
-
-        function setupUI() {
-             // Move button listeners
-             document.querySelectorAll('#ui-controls button[data-face]').forEach(button => {
-                 button.addEventListener('click', () => { if (isAnimating) return; const move = button.getAttribute('data-face'); if (move) { isCCWMode = move.includes("'"); updateModeIndicator(); queueMove(move); clearFaceSelection(); } });
-             });
-             // Action button listeners
-             document.getElementById('scramble-button').addEventListener('click', () => { if (isAnimating) return; scrambleCube(); });
-             document.getElementById('reset-button').addEventListener('click', () => { if (isAnimating) return; resetCube(); });
-             // Undo listener
-             if (undoButton) {
-                 undoButton.addEventListener('click', () => { console.log("Undo Button Clicked"); if (isAnimating) return; undoMove(); });
-             } else { console.error("Undo button element not found in setupUI."); }
-        }
-
-        function queueMove(moveNotation, isUndo = false) {
-             //console.log("Queueing move:", moveNotation, "Is Undo:", isUndo);
-             if (awaitingFirstMove && !isTimerRunning && !isScrambleRevealed) { startTimer(); awaitingFirstMove = false; }
-             if (!isUndo) { moveHistory.push(moveNotation); if(undoButton) undoButton.disabled = false; }
-             animationQueue.push(moveNotation);
-             if (!isAnimating) startNextAnimation();
-        }
-
-        function startNextAnimation() { if (animationQueue.length === 0) { isAnimating = false; enableUI(true); checkSolveState(); return; } isAnimating = true; enableUI(false); const move = animationQueue.shift(); applyMove(move, false); }
-        function generateScramble(length = SCRAMBLE_LENGTH) { const faces = ['F', 'B', 'U', 'D', 'L', 'R']; const modifiers = ['', "'", '2']; const axisMap = { F: 'z', B: 'z', U: 'y', D: 'y', L: 'x', R: 'x' }; let scramble = []; let lastAxis = null; for (let i = 0; i < length; i++) { let currentFace; let currentAxis; do { currentFace = faces[Math.floor(Math.random() * faces.length)]; currentAxis = axisMap[currentFace]; } while (currentAxis === lastAxis); const modifier = modifiers[Math.floor(Math.random() * modifiers.length)]; const move = currentFace + modifier; scramble.push(move); lastAxis = currentAxis; } console.log("Generated Scramble:", scramble.join(' ')); return scramble; }
-        function scrambleCube(length = SCRAMBLE_LENGTH) { if (isAnimating) return; resetCube(); const sequence = generateScramble(length); if (!sequence || sequence.length === 0) { console.error("Generated sequence is empty!"); return; } currentScrambleSequence = sequence; updateScrambleDisplay(sequence); applyScrambleBlur(true); if (revealScrambleButton) revealScrambleButton.disabled = false; isScrambleRevealed = false; isCCWMode = false; updateModeIndicator(); enableUI(false); sequence.forEach((move) => { applyMove(move, true); }); renderer.render(scene, camera); enableUI(true); awaitingFirstMove = true; wasScrambledSinceLastSolve = true; moveHistory = []; if (undoButton) undoButton.disabled = true; selectedFace = null; updateUIButtonHighlighting(); clearFaceSelection(); }
-
-        function startTimer() { if (isTimerRunning || isScrambleRevealed) return; console.log("Timer started!"); isTimerRunning = true; timerStartTime = performance.now(); timerIntervalId = setInterval(updateTimerDisplay, 50); if (revealScrambleButton) revealScrambleButton.disabled = false; }
-        function stopTimer() { if (isTimerRunning) { /*console.log("Timer stopped!");*/ isTimerRunning = false; clearInterval(timerIntervalId); timerIntervalId = null; updateTimerDisplay(); } awaitingFirstMove = false; }
-        function resetTimerDisplay() { if (timerDisplay) timerDisplay.textContent = "0.00"; }
-        function updateTimerDisplay() { if (!timerDisplay) return; let elapsedTime = 0; if (isTimerRunning) { elapsedTime = (performance.now() - timerStartTime) / 1000; } else if (timerStartTime > 0 && !timerIntervalId) { return; } timerDisplay.textContent = elapsedTime.toFixed(2); }
-        function updateScrambleDisplay(sequence, activeIndex = -1) { if (!scrambleContainer || !scrambleSequenceWrapper) return; const labelSpan = scrambleContainer.querySelector('span:first-child'); scrambleSequenceWrapper.innerHTML = ''; if (!sequence || sequence.length === 0) { scrambleSequenceWrapper.innerHTML = '(None)'; if (labelSpan) labelSpan.style.display = 'inline'; } else { if (labelSpan) labelSpan.style.display = 'inline'; sequence.forEach((move, index) => { const span = document.createElement('span'); span.classList.add('scramble-move'); span.textContent = move; span.dataset.index = index; if (index === activeIndex) span.classList.add('active'); scrambleSequenceWrapper.appendChild(span); }); } }
-        function handleScrambleMoveClick(event) { if (isAnimating) return; const target = event.target; if (target.classList.contains('scramble-move') && target.id !== 'reveal-scramble-button') { const indexToApply = parseInt(target.dataset.index, 10); if (isNaN(indexToApply) || !currentScrambleSequence || currentScrambleSequence.length === 0) return; console.log(`Applying scramble up to step ${indexToApply}`); resetCube(); applyScrambleBlur(!isScrambleRevealed); if (revealScrambleButton) revealScrambleButton.disabled = isScrambleRevealed; wasScrambledSinceLastSolve = true; awaitingFirstMove = true; isCCWMode = false; updateModeIndicator(); enableUI(false); const partialSequence = currentScrambleSequence.slice(0, indexToApply + 1); partialSequence.forEach(move => applyMove(move, true)); renderer.render(scene, camera); enableUI(true); updateScrambleDisplay(currentScrambleSequence, indexToApply); } }
-        function applyScrambleBlur(shouldBeBlurred) { if (!scrambleSequenceWrapper) return; if (shouldBeBlurred) scrambleSequenceWrapper.classList.add('blurred'); else scrambleSequenceWrapper.classList.remove('blurred'); }
-        function revealScramble() { if (isScrambleRevealed || !revealScrambleButton) return; console.log("Scramble Revealed!"); isScrambleRevealed = true; applyScrambleBlur(false); stopTimer(); revealScrambleButton.disabled = true; awaitingFirstMove = false; }
-        function isSolved() { if (initialCubieStates.length !== allCubies.length || allCubies.length === 0) return false; for (let i = 0; i < initialCubieStates.length; i++) { const initialState = initialCubieStates[i]; const currentCubie = initialState.mesh; if (currentCubie.position.distanceTo(initialState.position) > SOLVED_POS_EPSILON) return false; const currentQuat = currentCubie.quaternion.clone().normalize(); const initialQuat = initialState.quaternion.clone().normalize(); if (currentQuat.angleTo(initialQuat) > SOLVED_QUAT_EPSILON) return false; } return true; }
-        function checkSolveState() { if (wasScrambledSinceLastSolve && isSolved()) { console.log("Cube Solved!"); stopTimer(); triggerConfetti(); wasScrambledSinceLastSolve = false; awaitingFirstMove = false; } }
-        function triggerConfetti() { if (typeof confetti === 'function') { console.log("Triggering Confetti!"); confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } }); } else { console.warn("Confetti function not found."); } }
-
-        function applyMove(moveNotation, instant = false) { let axis = null, layer = 0, direction = 1, angleMultiplier = 1; const face = moveNotation.charAt(0), modifier = moveNotation.substring(1); if (modifier === "'") direction = -1; else if (modifier === '2') angleMultiplier = 2; switch (face) { case 'F': axis = 'z'; layer = 1; direction *= 1; break; case 'B': axis = 'z'; layer = -1; direction *= -1; break; case 'U': axis = 'y'; layer = 1; direction *= 1; break; case 'D': axis = 'y'; layer = -1; direction *= -1; break; case 'R': axis = 'x'; layer = 1; direction *= 1; break; case 'L': axis = 'x'; layer = -1; direction *= -1; break; default: console.warn("Unknown move face:", face); if (!instant) startNextAnimation(); return; } const cubiesToRotate = []; const layerPositionThreshold = (CUBIE_SIZE + GAP) * layer; const epsilon = 0.01; if (allCubies.length === 0) { console.error("Cannot apply move: allCubies array is empty!"); return; } allCubies.forEach(cubie => { const position = new THREE.Vector3(); cubie.getWorldPosition(position); let checkCoord; if (axis === 'x') checkCoord = position.x; else if (axis === 'y') checkCoord = position.y; else checkCoord = position.z; if (Math.abs(checkCoord - layerPositionThreshold) < epsilon) cubiesToRotate.push(cubie); }); if (cubiesToRotate.length === 0) { console.warn(`No cubies found for rotation: move=${moveNotation}, axis=${axis}, layer=${layer}`); if (!instant) startNextAnimation(); return; } const targetAngle = direction * ROTATION_ANGLE * angleMultiplier; const rotationAxisVec = new THREE.Vector3(axis === 'x' ? 1 : 0, axis === 'y' ? 1 : 0, axis === 'z' ? 1 : 0); pivot.position.set(0, 0, 0); pivot.rotation.set(0,0,0); pivot.updateMatrixWorld(true); cubiesToRotate.forEach(cubie => pivot.attach(cubie)); if (instant) { /*console.log(`ApplyMove: Executing INSTANT move ${moveNotation}`);*/ pivot.rotateOnWorldAxis(rotationAxisVec, targetAngle); pivot.updateMatrixWorld(true); const childrenToDetach = [...pivot.children]; childrenToDetach.forEach(cubie => scene.attach(cubie)); } else { isAnimating = true; enableUI(false); currentAnimation = { targetAngle, currentAngle: 0, rotationAxis: rotationAxisVec, cubies: cubiesToRotate }; } }
-        function animate() { requestAnimationFrame(animate); controls.update(); if (currentAnimation) { const { targetAngle, rotationAxis } = currentAnimation; let { currentAngle } = currentAnimation; const deltaAngle = Math.sign(targetAngle) * ANIMATION_SPEED; const remainingAngle = targetAngle - currentAngle; const rotateBy = Math.abs(deltaAngle) > Math.abs(remainingAngle) ? remainingAngle : deltaAngle; pivot.rotateOnWorldAxis(rotationAxis, rotateBy); currentAnimation.currentAngle += rotateBy; if (Math.abs(currentAnimation.currentAngle - targetAngle) < 0.001) { pivot.updateMatrixWorld(true); const childrenToDetach = [...pivot.children]; childrenToDetach.forEach(cubie => scene.attach(cubie)); pivot.rotation.set(0,0,0); currentAnimation = null; startNextAnimation(); } } renderer.render(scene, camera); }
-        function enableUI(enabled) { document.querySelectorAll('#ui-controls button').forEach(button => { if (button.id === 'undo-button') { button.disabled = !enabled || moveHistory.length === 0; } else { button.disabled = !enabled; } }); controls.enabled = enabled; if (revealScrambleButton) revealScrambleButton.disabled = !enabled || isScrambleRevealed || !wasScrambledSinceLastSolve; }
-        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
-        function updateModeIndicator() { if (!labelCW || !labelCCW) return; if (isCCWMode) { labelCCW.classList.add('mode-active'); labelCW.classList.remove('mode-active'); } else { labelCW.classList.add('mode-active'); labelCCW.classList.remove('mode-active'); } /*console.log("Mode updated:", isCCWMode ? "CCW" : "CW");*/ }
-
-        // CORRECTED: Pointer Down Handler
         function onPointerDown(event) {
             const rect = renderer.domElement.getBoundingClientRect();
             pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
             pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
             raycaster.setFromCamera(pointer, camera);
-            const intersects = raycaster.intersectObjects(faceLabels);
+            const intersectsLabels = raycaster.intersectObjects(faceLabels);
 
             pointerDownOnLabel = false;
-            clearFaceSelection(); // Clear previous before setting new
+            let didProcessClick = false;
 
-            if (intersects.length > 0) {
-                const clickedLabelSprite = intersects[0].object;
+            const targetElement = event.target;
+            const isUIClick = targetElement.closest && targetElement.closest('#ui-controls');
+
+            if (!isUIClick && intersectsLabels.length === 0) {
+                clearFaceSelection();
+                controls.enabled = true;
+                return;
+            }
+
+            if (intersectsLabels.length > 0) {
+                const clickedLabelSprite = intersectsLabels[0].object;
                 const faceId = clickedLabelSprite.userData.face;
 
-                console.log("Selected Face Label:", faceId);
+                clearFaceSelection();
+
                 selectedFace = faceId;
                 updateUIButtonHighlighting();
-
-                // Highlight the 3D label
                 clickedLabelSprite.material.color.set(SELECTED_LABEL_COLOR);
 
                 pointerDownOnLabel = true;
                 controls.enabled = false;
+                console.log("OrbitControls DISABLED on label select.");
+                event.stopPropagation();
 
-                // Store drag start position
                 dragStartX = pointer.x;
                 dragStartY = pointer.y;
                 isDraggingForRotation = false;
 
                 event.preventDefault();
-            } else {
-                controls.enabled = true;
+                didProcessClick = true;
             }
         }
 
-        // MODIFIED: Pointer Move Handler with improved logging and interaction
         function onPointerMove(event) {
-            // Exit if no face selected, or pointer button isn't down
-            if (selectedFace === null || event.buttons !== 1) {
-                // If pointer came up mid-drag elsewhere, reset drag state
-                isDraggingForRotation = false;
-                // Keep controls enabled if we are not selecting/dragging
-                if(!pointerDownOnLabel && !isAnimating) controls.enabled = true;
-                return;
+            if (event.buttons !== 1) { isDraggingForRotation = false; return; }
+            if (selectedFace === null || !pointerDownOnLabel) return;
+
+            if (isDraggingForRotation) {
+                event.stopPropagation();
+                event.preventDefault();
             }
 
-            // Only proceed if pointerdown started on a label
-            if (!pointerDownOnLabel) {
-                return;
-            }
-
-            // Calculate current pointer position
             const rect = renderer.domElement.getBoundingClientRect();
             pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
             pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-            // Start drag state on first move after pointerdown on label
             if (!isDraggingForRotation) {
-                // Add a small initial deadzone before starting drag check
                 const initialDeltaX = pointer.x - dragStartX;
                 const initialDeltaY = pointer.y - dragStartY;
-                if (Math.sqrt(initialDeltaX*initialDeltaX + initialDeltaY*initialDeltaY) > 0.01) { // Small deadzone
+                if (Math.sqrt(initialDeltaX*initialDeltaX + initialDeltaY*initialDeltaY) > 0.01) {
                     isDraggingForRotation = true;
-                    console.log("Drag for rotation started on face:", selectedFace);
-                    // Prevent default only once drag starts
+                    event.stopPropagation();
                     event.preventDefault();
                 } else {
-                    return; // Don't process tiny movements yet
+                    return;
                 }
             }
 
-            // If dragging, calculate movement and check threshold
             if (isDraggingForRotation) {
-                event.preventDefault(); // Prevent other actions during drag
                 const deltaX = pointer.x - dragStartX;
                 const deltaY = pointer.y - dragStartY;
                 const dragDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-                console.log(`Dragging: dX=${deltaX.toFixed(2)}, dY=${deltaY.toFixed(2)}, dist=${dragDistance.toFixed(2)}`);
-
                 if (dragDistance > dragThreshold) {
-                    console.log("Drag threshold exceeded.");
                     let moveNotation = null;
-
-                    // --- Basic Heuristic ---
-                    if (Math.abs(deltaX) > Math.abs(deltaY)) { // Horizontal drag
-                        const direction = deltaX > 0 ? 1 : -1; // Right or Left drag
-                        console.log("Horizontal Drag, Direction:", direction);
-                        switch(selectedFace){ // Map horizontal drag to CW/CCW for selected face
-                            case 'F': case 'U': case 'R': 
-                                moveNotation = direction > 0 ? selectedFace : selectedFace + "'"; 
-                                break;
-                            case 'B': case 'D': case 'L': 
-                                moveNotation = direction < 0 ? selectedFace : selectedFace + "'"; 
-                                break;
+                    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                        const direction = deltaX > 0 ? 1 : -1;
+                        switch(selectedFace){
+                            case 'F': case 'U': case 'R': moveNotation = direction > 0 ? selectedFace : selectedFace + "'"; break;
+                            case 'B': case 'D': case 'L': moveNotation = direction < 0 ? selectedFace : selectedFace + "'"; break;
                         }
-                    } else { // Vertical drag
-                        const direction = deltaY > 0 ? 1 : -1; // Up or Down drag
-                        console.log("Vertical Drag, Direction:", direction);
-                        switch(selectedFace){ // Map vertical drag to CW/CCW for selected face
-                            case 'F': case 'R': case 'D': 
-                                moveNotation = direction > 0 ? selectedFace : selectedFace + "'"; 
-                                break;
-                            case 'B': case 'L': case 'U': 
-                                moveNotation = direction < 0 ? selectedFace : selectedFace + "'"; 
-                                break;
+                    } else {
+                        const direction = deltaY > 0 ? 1 : -1;
+                        switch(selectedFace){
+                            case 'F': case 'R': case 'D': moveNotation = direction > 0 ? selectedFace : selectedFace + "'"; break;
+                            case 'B': case 'L': case 'U': moveNotation = direction < 0 ? selectedFace : selectedFace + "'"; break;
                         }
                     }
 
                     if (moveNotation) {
                         console.log("Triggering move from drag:", moveNotation);
                         queueMove(moveNotation);
-                        // Immediately clear selection and reset state
                         clearFaceSelection();
                         pointerDownOnLabel = false;
-                    } else {
-                        console.log("Heuristic did not produce a move notation.");
                         isDraggingForRotation = false;
-                        pointerDownOnLabel = false;
+                    } else {
+                         isDraggingForRotation = false;
+                         pointerDownOnLabel = false;
                     }
                 }
             }
         }
 
-        // MODIFIED: Pointer Up Handler
         function onPointerUp(event) {
             if (isDraggingForRotation) {
                 clearFaceSelection();
             }
             isDraggingForRotation = false;
             pointerDownOnLabel = false;
-
-            if (!isAnimating && animationQueue.length === 0) {
-                controls.enabled = true;
-            }
-        }
-
-        // CORRECTED: Function to update UI button highlighting
-        function updateUIButtonHighlighting() {
-            document.querySelectorAll('#ui-controls button[data-face]').forEach(btn => {
-                btn.classList.remove('button-highlighted');
-            });
-
-            if (selectedFace) {
-                const cwButton = document.querySelector(`#ui-controls button[data-face="${selectedFace}"]`);
-                const ccwButton = document.querySelector(`#ui-controls button[data-face="${selectedFace}'"]`);
-                if (cwButton) cwButton.classList.add('button-highlighted');
-                if (ccwButton) ccwButton.classList.add('button-highlighted');
-            }
-        }
-
-        function handleKeyDown(event) { if (isAnimating) return; const isUndoKey = (event.ctrlKey && event.key.toUpperCase() === 'Z') || (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toUpperCase() === 'Z') || event.code === 'Space'; if (isUndoKey) { const activeElement = document.activeElement; const isTyping = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable); if (!isTyping) { console.log("Undo shortcut"); event.preventDefault(); undoMove(); return; } } if (event.key === 'Shift') { if (!event.ctrlKey && !event.metaKey && !event.altKey) { isCCWMode = !isCCWMode; updateModeIndicator(); event.preventDefault(); } return; } if (event.metaKey || event.ctrlKey || event.altKey || event.key === 'Control' || event.key === 'Alt' || event.key === 'Meta') { return; } let moveNotation = null; const key = event.key.toUpperCase(); let baseFace = null; switch (key) { case 'F': baseFace = 'F'; break; case 'B': baseFace = 'B'; break; case 'U': baseFace = 'U'; break; case 'D': baseFace = 'D'; break; case 'L': baseFace = 'L'; break; case 'R': baseFace = 'R'; break; } if (baseFace) { moveNotation = isCCWMode ? baseFace + "'" : baseFace; event.preventDefault(); queueMove(moveNotation); } }
-        function getInverseMove(move) { if (!move) return null; if (move.includes('2')) return move; else if (move.includes("'")) return move.replace("'", ""); else return move + "'"; }
-        function undoMove() { console.log("Executing undoMove function..."); if (isAnimating || moveHistory.length === 0) { console.log("Cannot undo:", isAnimating ? "Animating" : "No history"); if (undoButton) undoButton.disabled = moveHistory.length === 0; return; } const lastMove = moveHistory.pop(); const inverseMove = getInverseMove(lastMove); if (inverseMove) { console.log("Queueing inverse move for animation:", inverseMove); isCCWMode = inverseMove.includes("'"); updateModeIndicator(); queueMove(inverseMove, true); clearFaceSelection(); } else { console.error("Could not determine inverse for:", lastMove); if (undoButton) undoButton.disabled = moveHistory.length === 0; } if (undoButton) undoButton.disabled = moveHistory.length === 0; }
-
-        // NEW: Helper to clear selection state and visuals
-        function clearFaceSelection() {
-            if (selectedFace) {
-                const selectedLabel = faceLabels.find(label => label.userData.face === selectedFace);
-                if (selectedLabel) {
-                    selectedLabel.material.color.set(COLORS.LABEL);
-                }
-            }
-            selectedFace = null;
-            updateUIButtonHighlighting();
-            isDraggingForRotation = false;
         }
 
         // --- Start ---
