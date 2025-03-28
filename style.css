@@ -1,185 +1,476 @@
 /* --- Base Styles --- */
-body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #282c34; color: #abb2bf; }
-canvas { display: block; touch-action: none; } /* Style for canvas added by JS */
+
+body {
+    margin: 0;
+    overflow: hidden;
+    font-family: sans-serif;
+    background-color: #282c34;
+    color: #abb2bf;
+}
+
+canvas {
+    display: block;
+    touch-action: none;
+}
+
+/* Style for canvas added by JS */
+
 
 /* --- UI Controls Panel --- */
+
 #ui-controls {
+
     position: absolute;
+
     top: 10px;
+
     left: 10px;
+
     background: rgba(40, 44, 52, 0.85);
+
     padding: 8px;
+
     border-radius: 8px;
+
     display: grid;
+
     grid-template-columns: repeat(2, auto);
+
     gap: 6px 10px;
+
     z-index: 10;
+
     /* Adjusted max-width for potentially wider buttons */
+
     max-width: 180px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+
 }
+
 
 /* --- General Button Styling --- */
+
 #ui-controls button {
+
     padding: 8px 10px;
+
     /* Base font-size for text, icon size relative to this */
+
     font-size: 13px;
+
     cursor: pointer;
+
     background-color: #4f5663;
+
     color: #e6e6e6;
+
     border: none;
+
     border-radius: 6px;
+
     min-width: 45px;
+
     text-align: center;
+
     display: flex;
+
     /* Align icon and text vertically */
+
     align-items: center;
+
     justify-content: center;
+
     /* Reduced default gap, adjust per button if needed */
+
     gap: 5px;
+
     transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
-    line-height: 1.2; /* Ensure text doesn't wrap weirdly */
+
+    line-height: 1.2;
+    /* Ensure text doesn't wrap weirdly */
+
 }
+
 
 #ui-controls button i {
-     /* Make icons slightly larger and bolder */
-     font-size: 1.1em; /* Relative to button font-size */
-     font-weight: 600; /* Bolder look */
-     width: 1.2em; /* Helps consistent alignment */
-     text-align: center;
+
+    /* Make icons slightly larger and bolder */
+
+    font-size: 1.1em;
+    /* Relative to button font-size */
+
+    font-weight: 600;
+    /* Bolder look */
+
+    width: 1.2em;
+    /* Helps consistent alignment */
+
+    text-align: center;
+
 }
 
+
 #ui-controls button .button-text {
-     /* Smaller text for labels */
-     font-size: 0.75em; /* Relative to button font-size */
-     font-weight: normal;
-     white-space: nowrap; /* Prevent wrapping */
+
+    /* Smaller text for labels */
+
+    font-size: 0.75em;
+    /* Relative to button font-size */
+
+    font-weight: normal;
+
+    white-space: nowrap;
+    /* Prevent wrapping */
+
 }
+
 
 
 #ui-controls button:hover {
+
     background-color: #606875;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+
 }
+
 
 #ui-controls button:active {
+
     background-color: #424854;
+
     transform: scale(0.96);
+
 }
+
 
 #ui-controls button:disabled {
+
     background-color: #3a3f47;
+
     color: #7a828e;
+
     cursor: not-allowed;
+
     transform: none;
+
     box-shadow: none;
+
 }
+
 /* Ensure disabled icons/text also look muted */
+
 #ui-controls button:disabled i,
+
 #ui-controls button:disabled .button-text {
-     color: #7a828e;
+
+    color: #7a828e;
+
 }
+
 
 /* --- Mode Buttons (CW/CCW) --- */
+
 .mode-button {
+
     grid-column: span 1;
+
     font-weight: bold;
+
 }
+
 /* Icon only for mode buttons, increase padding slightly */
-.mode-button { padding: 9px 12px; }
-.mode-button i { font-size: 1.2em; width: auto; } /* Make mode icons slightly bigger */
+
+.mode-button {
+    padding: 9px 12px;
+}
+
+.mode-button i {
+    font-size: 1.2em;
+    width: auto;
+}
+
+/* Make mode icons slightly bigger */
+
 
 .mode-button.mode-active {
-     background-color: #528bff;
-     color: #ffffff;
-     box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+
+    background-color: #528bff;
+
+    color: #ffffff;
+
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+
 }
+
 .mode-button:not(.mode-active):hover {
+
     background-color: #606875;
+
 }
+
 
 /* --- Move Buttons (F, F', etc) --- */
+
 .move-button {
+
     font-weight: bold;
+
 }
+
 
 /* --- Action Buttons (Scramble, Undo, Reset) --- */
-#scramble-button, #undo-button, #reset-button {
+
+#scramble-button,
+#undo-button,
+#reset-button {
+
     grid-column: span 2;
     margin-top: 8px;
-    gap: 6px; /* Slightly more gap between icon and text */
+    gap: 6px;
+    /* Slightly more gap between icon and text */
+
 }
 
-/* Scramble Button Emphasis */
-#scramble-button {
-    background-color: #e5737e; /* Slightly brighter default red */
+
+/* Scramble Button Emphasis - INCREASED SPECIFICITY */
+
+#ui-controls #scramble-button {
+
+    background-color: #e5737e;
+    /* Slightly brighter default red */
     color: #ffffff;
     /* Subtle shadow to make it pop slightly */
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
-#scramble-button:hover {
-     background-color: #ec7b85;
-     box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2); /* Enhance shadow on hover */
+
+#ui-controls #scramble-button:hover {
+
+    background-color: #e72f3f;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+    /* Enhance shadow on hover */
+
 }
-#scramble-button:active {
-     background-color: #d4616b;
-     box-shadow: inset 0 1px 2px rgba(0,0,0,0.2); /* Inset shadow on press */
+
+#ui-controls #scramble-button:active {
+
+    background-color: #d4616b;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+    /* Inset shadow on press */
+
 }
+
 
 #undo-button {
-     background-color: #98c379;
-     color: #ffffff;
+
+    background-color: #98c379;
+    color: #ffffff;
+
 }
-#undo-button:hover:not(:disabled) { background-color: #a5d887; }
-#undo-button:active:not(:disabled) { background-color: #8bc06c; }
+
+#undo-button:hover:not(:disabled) {
+    background-color: #a5d887;
+}
+
+#undo-button:active:not(:disabled) {
+    background-color: #8bc06c;
+}
+
 
 #reset-button {
-     background-color: #61afef;
-     color: #ffffff;
+
+    background-color: #61afef;
+
+    color: #ffffff;
+
 }
-#reset-button:hover { background-color: #7cc5ff; }
-#reset-button:active { background-color: #529cdd; }
+
+#reset-button:hover {
+    background-color: #7cc5ff;
+}
+
+#reset-button:active {
+    background-color: #529cdd;
+}
+
 
 /* --- Responsive --- */
+
 /* Hide Move buttons on tablets/smaller laptops */
+
 @media screen and (max-width: 768px) {
-    .move-button { display: none !important; }
+
+    .move-button {
+        display: none !important;
+    }
+
     /* Maybe slightly reduce panel padding on medium screens */
-    #ui-controls { padding: 6px; gap: 5px 8px;}
+
+    #ui-controls {
+        padding: 6px;
+        gap: 5px 8px;
+    }
+
 }
 
+
 /* Hide button text on very small screens (phones) */
+
 @media screen and (max-width: 480px) {
+
     #ui-controls {
-        max-width: 70px; /* Allow panel to shrink for icons only */
+
+        max-width: 70px;
+        /* Allow panel to shrink for icons only */
+
         padding: 5px;
+
         gap: 4px;
-     }
-     #scramble-button .button-text,
-     #undo-button .button-text,
-     #reset-button .button-text {
-         display: none; /* Hide text */
-     }
-     /* Adjust padding for icon-only action buttons */
-     #scramble-button, #undo-button, #reset-button {
-         padding: 8px;
-         gap: 0; /* No gap needed */
-     }
-     /* Ensure icons stay centered */
-    #scramble-button i, #undo-button i, #reset-button i {
-         width: auto; /* Remove fixed width */
+
     }
+
+    #scramble-button .button-text,
+
+    #undo-button .button-text,
+
+    #reset-button .button-text {
+
+        display: none;
+        /* Hide text */
+
+    }
+
+    /* Adjust padding for icon-only action buttons */
+
+    #scramble-button,
+    #undo-button,
+    #reset-button {
+
+        padding: 8px;
+
+        gap: 0;
+        /* No gap needed */
+
+    }
+
+    /* Ensure icons stay centered */
+
+    #scramble-button i,
+    #undo-button i,
+    #reset-button i {
+
+        width: auto;
+        /* Remove fixed width */
+
+    }
+
 }
+
 
 
 /* --- Timer & Scramble --- */
-#timer-display { position: absolute; top: 10px; right: 10px; background: rgba(40, 44, 52, 0.8); padding: 10px 15px; border-radius: 5px; font-size: 24px; font-weight: bold; color: #e6e6e6; z-index: 10; min-width: 80px; text-align: right; }
-#scramble-container { position: absolute; bottom: 10px; left: 10px; background: rgba(40, 44, 52, 0.8); padding: 8px; border-radius: 5px; max-width: calc(100% - 40px); line-height: 1.6; z-index: 10; color: #abb2bf; }
-#reveal-scramble-button { display: inline-block; margin-right: 10px; margin-bottom: 5px; padding: 6px 12px; font-size: 12px; cursor: pointer; background-color: #e5c07b; /* Gold/Yellow */ color: #282c34; border: none; border-radius: 4px; width: fit-content; transition: background-color 0.2s ease; }
-#reveal-scramble-button:hover { background-color: #f0ca8f; }
-#reveal-scramble-button:disabled { background-color: #5c6370; color: #9da5b4; cursor: not-allowed;}
-#scramble-sequence-wrapper { transition: filter 0.3s ease; display: inline; }
-#scramble-sequence-wrapper.blurred { filter: blur(4px); user-select: none; }
-.scramble-move { cursor: pointer; padding: 2px 5px; margin: 0 2px; border-radius: 3px; display: inline-block; border: 1px solid transparent; transition: background-color 0.2s, border-color 0.2s; }
-.scramble-move:hover { background-color: rgba(255, 255, 255, 0.15); border-color: rgba(255, 255, 255, 0.3); }
-.scramble-move.active { background-color: rgba(97, 175, 239, 0.5); border-color: rgba(97, 175, 239, 0.8); }
+
+#timer-display {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(40, 44, 52, 0.8);
+    padding: 10px 15px;
+    border-radius: 5px;
+    font-size: 24px;
+    font-weight: bold;
+    color: #e6e6e6;
+    z-index: 10;
+    min-width: 80px;
+    text-align: right;
+}
+
+#scramble-container {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(40, 44, 52, 0.8);
+    padding: 8px;
+    border-radius: 5px;
+    max-width: calc(100% - 40px);
+    line-height: 1.6;
+    z-index: 10;
+    color: #abb2bf;
+}
+
+#reveal-scramble-button {
+    display: inline-block;
+    margin-right: 10px;
+    margin-bottom: 5px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    background-color: #e5c07b;
+    /* Gold/Yellow */
+    color: #282c34;
+    border: none;
+    border-radius: 4px;
+    width: fit-content;
+    transition: background-color 0.2s ease;
+}
+
+#reveal-scramble-button:hover {
+    background-color: #f0ca8f;
+}
+
+#reveal-scramble-button:disabled {
+    background-color: #5c6370;
+    color: #9da5b4;
+    cursor: not-allowed;
+}
+
+#scramble-sequence-wrapper {
+    transition: filter 0.3s ease;
+    display: inline;
+}
+
+#scramble-sequence-wrapper.blurred {
+    filter: blur(4px);
+    user-select: none;
+}
+
+.scramble-move {
+    cursor: pointer;
+    padding: 2px 5px;
+    margin: 0 2px;
+    border-radius: 3px;
+    display: inline-block;
+    border: 1px solid transparent;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.scramble-move:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.scramble-move.active {
+    background-color: rgba(97, 175, 239, 0.5);
+    border-color: rgba(97, 175, 239, 0.8);
+}
+
+/* --- Backlink Style --- */
+#backlink {
+    position: fixed; /* Positions relative to the viewport window */
+    bottom: 10px;    /* Distance from the bottom edge */
+    right: 15px;     /* Distance from the right edge */
+    z-index: 9;      /* Keeps it above the canvas, but below main UI elements (z-index: 10) */
+
+    font-size: 0.75rem; /* Adjust size as needed (e.g., 10px, 11px) */
+    color: #8a919f;   /* A slightly muted version of your text color */
+    text-decoration: none; /* Remove the default underline */
+    opacity: 0.6;      /* Make it less prominent */
+    transition: opacity 0.2s ease, color 0.2s ease; /* Smooth transition on hover */
+}
+
+#backlink:hover {
+    opacity: 1;        /* Fully visible on hover */
+    color: #c8cdd7;   /* Slightly brighter color on hover */
+    text-decoration: underline; /* Optional: Add underline on hover for better affordance */
+}

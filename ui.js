@@ -5,8 +5,15 @@ import {
     requestScramble,
     requestReset,
     requestUndo,
-    getIsAnimating
+    getIsAnimating,
+    clearFaceSelectionGraphics
 } from './cube.js';
+
+// Import the clearFaceSelectionGraphics function explicitly
+import { clearFaceSelectionGraphics as clearFaceGraphicsFromCube } from './cube.js';
+
+// Import the highlight/unhighlight functions
+import { highlightFaceLabel, unhighlightFaceLabel } from './cube.js';
 
 // --- UI Element References ---
 let uiControlsPanel; // The main controls div
@@ -28,6 +35,82 @@ let wasScrambledSinceLastSolve = false; // Track if solved state is meaningful
 let isScrambleRevealed = false;
 let currentScrambleSequence = []; // Store the sequence provided by cube.js
 let selectedFace = null; // Track which face label (F, B, U, etc.) is conceptually selected
+
+// --- Tutorial Functionality ---
+
+// Helper function for delays using Promises
+function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Tutorial state flag
+let tutorialOverlay = null;
+
+async function playInteractionTutorial() {
+    const tutorialPlayed = localStorage.getItem('cubeTutorialPlayed');
+    if (tutorialPlayed) {
+        console.log("Tutorial already played.");
+        return;
+    }
+    console.log("Playing interaction tutorial...");
+
+    // Create and show overlay to prevent interaction
+    if (!tutorialOverlay) {
+        tutorialOverlay = document.createElement('div');
+        tutorialOverlay.style.position = 'fixed';
+        tutorialOverlay.style.top = '0';
+        tutorialOverlay.style.left = '0';
+        tutorialOverlay.style.width = '100%';
+        tutorialOverlay.style.height = '100%';
+        tutorialOverlay.style.background = 'rgba(0, 0, 0, 0.3)';
+        tutorialOverlay.style.color = 'white';
+        tutorialOverlay.style.zIndex = '100';
+        tutorialOverlay.style.display = 'flex';
+        tutorialOverlay.style.justifyContent = 'center';
+        tutorialOverlay.style.alignItems = 'center';
+        tutorialOverlay.style.fontSize = '1.5em';
+        tutorialOverlay.style.textAlign = 'center';
+        tutorialOverlay.style.padding = '20px';
+        tutorialOverlay.innerHTML = '<span>Loading Tutorial...</span>';
+        document.body.appendChild(tutorialOverlay);
+    }
+    tutorialOverlay.style.display = 'flex'; // Make sure it's visible
+
+    await wait(1500); // Initial pause
+
+    // --- Step 1: CW Rotation ---
+    tutorialOverlay.innerHTML = '<span>Tap a floating letter (e.g., U)...</span>';
+    highlightFaceLabel('U');
+    await wait(800);
+
+    tutorialOverlay.innerHTML = '<span>DRAG --> to rotate Clockwise (U)</span>';
+    requestMove('U'); // Simulate drag right
+    await wait(800); // Wait for animation
+    unhighlightFaceLabel('U');
+    await wait(800); // Pause after move
+
+    // --- Step 2: CCW Rotation ---
+    tutorialOverlay.innerHTML = '<span> DRAG <-- to rotate Counter-Clockwise (U\')</span>';
+    highlightFaceLabel('U');
+    await wait(800);
+
+    requestMove("U'"); // Simulate drag left
+    await wait(800);
+    unhighlightFaceLabel('U');
+    await wait(800);
+
+    // --- Step 3: Keyboard Hint ---
+    tutorialOverlay.innerHTML = '<span>Keyboard: F, B, U, D, L, R .<br>Hold [Shift] for Counter-Clockwise (e.g., Shift + U = U\')</span>';
+    await wait(1000);
+
+    // --- Finish ---
+    tutorialOverlay.innerHTML = '<span>Enjoy!</span>';
+    await wait(500);
+
+    tutorialOverlay.style.display = 'none'; // Hide overlay
+    localStorage.setItem('cubeTutorialPlayed', 'true'); // Mark as played
+    console.log("Tutorial finished.");
+}
 
 // --- Initialization ---
 
@@ -424,10 +507,20 @@ const cubeCallbacks = {
     // Provide functions for cube.js to get UI state when needed
     getSelectedFace: () => selectedFace,
     clearFaceSelectionUI: () => {
-         selectedFace = null;
-         updateMoveButtonVisibility(); // Update buttons when selection cleared
+        console.log(`UI Callback: clearFaceSelectionUI (current: ${selectedFace})`);
+        if (selectedFace !== null) {
+            selectedFace = null;
+            updateMoveButtonVisibility();
+            clearFaceGraphicsFromCube(); // Use the imported function directly
+        }
     },
-    isCCWMode: () => isCCWMode
+    isCCWMode: () => isCCWMode,
+    // NEW: Callback for cube.js to set the selected face in the UI
+    setSelectedFace: (faceId) => {
+        console.log(`UI Callback: setSelectedFace(${faceId})`);
+        selectedFace = faceId;
+        updateMoveButtonVisibility();
+    },
 };
 
 
@@ -435,4 +528,5 @@ const cubeCallbacks = {
 document.addEventListener('DOMContentLoaded', () => {
     initUI(); // Initialize UI elements and listeners first
     initializeCube(cubeCallbacks); // Then initialize the cube graphics/logic, passing callbacks
+    playInteractionTutorial(); // Call the tutorial
 });

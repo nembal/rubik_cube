@@ -52,7 +52,8 @@ let uiCallbacks = {
     onSolve: () => {},
     getSelectedFace: () => null, // Function provided by UI to get selected face
     clearFaceSelectionUI: () => {}, // Function provided by UI to clear selection visually
-    isCCWMode: () => false // Function provided by UI to check mode
+    isCCWMode: () => false, // Function provided by UI to check mode
+    setSelectedFace: () => {}, // Placeholder for the new setSelectedFace callback
 };
 
 
@@ -200,10 +201,10 @@ function createFaceLabel(text, position, color, size) {
     return sprite;
 }
 
-function clearFaceSelectionGraphics() {
+// MODIFIED: Renamed and Exported
+export function clearFaceSelectionGraphics() {
+    console.log("cube.js: Clearing face label graphics.");
     faceLabels.forEach(label => label.material.color.set(COLORS.LABEL));
-    isDraggingForRotation = false;
-    // Let UI module handle actual 'selectedFace' state if needed elsewhere
 }
 
 function animate() {
@@ -516,128 +517,94 @@ function onPointerDown(event) {
     if (intersectsLabels.length > 0) {
         const clickedLabelSprite = intersectsLabels[0].object;
         const faceId = clickedLabelSprite.userData.face;
+        console.log(`cube.js: Pointer DOWN on label: ${faceId}`);
 
-        clearFaceSelectionGraphics(); // Clear visual highlight on labels
-        // uiCallbacks.setSelectedFace(faceId); // Let UI module know which face is selected
-        uiCallbacks.clearFaceSelectionUI(); // Clear previous UI state first
-        // Let UI module handle the selection logic and visual update of *buttons*
-        // This module only handles the *label* highlight
+        clearFaceSelectionGraphics();
+        uiCallbacks.setSelectedFace(faceId);
+        clickedLabelSprite.material.color.set(SELECTED_LABEL_COLOR);
 
-        clickedLabelSprite.material.color.set(SELECTED_LABEL_COLOR); // Highlight clicked label
         pointerDownOnLabel = true;
-        controls.enabled = false; // Disable orbit controls when interacting with labels
-        console.log("OrbitControls DISABLED on label select.");
-        event.stopPropagation(); // Prevent OrbitControls from processing
+        controls.enabled = false;
+        console.log("cube.js: OrbitControls DISABLED on label select.");
 
-        // Store start position for drag detection
         dragStartX = pointer.x;
         dragStartY = pointer.y;
-        isDraggingForRotation = false; // Reset drag flag
-        event.preventDefault(); // Prevent default browser actions
+        isDraggingForRotation = false;
     } else {
-        // Click was on canvas but not on a label
-        clearFaceSelectionGraphics();
+        console.log("cube.js: Pointer DOWN on background.");
         uiCallbacks.clearFaceSelectionUI();
-        controls.enabled = true; // Ensure orbit controls are enabled
+        controls.enabled = true;
+        console.log("cube.js: OrbitControls ENABLED on background click.");
+        pointerDownOnLabel = false;
+        isDraggingForRotation = false;
     }
 }
 
 function onPointerMove(event) {
-    // Only process if primary button is pressed and interaction started on a label
-    if (event.buttons !== 1 || !pointerDownOnLabel || isAnimating) {
-        isDraggingForRotation = false; // Reset drag if button released or not started on label
-        return;
-    }
+    if (event.buttons !== 1 || !pointerDownOnLabel || isAnimating) return;
+
+    event.stopPropagation();
+    event.preventDefault();
 
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-    // Calculate distance moved
     const deltaX = pointer.x - dragStartX;
     const deltaY = pointer.y - dragStartY;
     const dragDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-    // Only trigger drag rotation if moved beyond threshold
-    if (!isDraggingForRotation && dragDistance > 0.01) { // Small initial threshold to confirm drag
+    if (!isDraggingForRotation && dragDistance > 0.01) {
+        console.log("cube.js: Drag threshold crossed, isDraggingForRotation = true");
         isDraggingForRotation = true;
     }
 
-    if (isDraggingForRotation) {
-        event.stopPropagation(); // Prevent OrbitControls while dragging on label
-        event.preventDefault();
-
-        // Determine move based on drag direction and distance
-        if (dragDistance > dragThreshold) { // Larger threshold to trigger move
-             let moveNotation = null;
-             const selectedFace = uiCallbacks.getSelectedFace(); // Get selected face from UI module
-             if (!selectedFace) { // Safety check
-                pointerDownOnLabel = false;
-                isDraggingForRotation = false;
-                controls.enabled = true;
-                return;
-             }
-
-            // Determine move based on dominant drag direction and selected face context
-            // (This logic needs careful review based on camera orientation - simplified version)
-            if (Math.abs(deltaX) > Math.abs(deltaY)) { // Horizontal drag dominant
-                const direction = deltaX > 0 ? 1 : -1; // Right or Left drag
-                 // Simplified mapping (assumes standard view) - This might need refinement
-                 switch(selectedFace){
-                      case 'F': moveNotation = direction > 0 ? "U" : "U'"; break; // Drag Right on F -> U, Drag Left -> U'
-                      case 'B': moveNotation = direction > 0 ? "U'" : "U"; break; // Drag Right on B -> U', Drag Left -> U
-                      case 'U': moveNotation = direction > 0 ? "B'" : "F"; break; // Horizontal drag on U affects F/B
-                      case 'D': moveNotation = direction > 0 ? "F'" : "B"; break; // Horizontal drag on D affects F/B
-                      case 'R': moveNotation = direction > 0 ? "U" : "U'"; break; // Drag Right on R -> U, Drag Left -> U'
-                      case 'L': moveNotation = direction > 0 ? "U'" : "U"; break; // Drag Right on L -> U', Drag Left -> U
-                 }
-            } else { // Vertical drag dominant
-                const direction = deltaY > 0 ? 1 : -1; // Up or Down drag
-                 // Simplified mapping (assumes standard view)
-                 switch(selectedFace){
-                      case 'F': moveNotation = direction > 0 ? "L'" : "R"; break; // Drag Up on F -> L', Drag Down -> R
-                      case 'B': moveNotation = direction > 0 ? "R'" : "L"; break; // Drag Up on B -> R', Drag Down -> L
-                      case 'U': moveNotation = direction > 0 ? "L'" : "R"; break; // Drag Up on U -> L', Drag Down -> R
-                      case 'D': moveNotation = direction > 0 ? "R'" : "L"; break; // Drag Up on D -> R', Drag Down -> L
-                      case 'R': moveNotation = direction > 0 ? "F'" : "B"; break; // Drag Up on R -> F', Drag Down -> B
-                      case 'L': moveNotation = direction > 0 ? "B'" : "F"; break; // Drag Up on L -> B', Drag Down -> F
-                 }
-            }
-
-            if (moveNotation) {
-                console.log("Triggering move from drag:", moveNotation);
-                requestMove(moveNotation); // Queue the detected move
-
-                // Reset interaction state after triggering move
-                clearFaceSelectionGraphics();
-                uiCallbacks.clearFaceSelectionUI();
-                pointerDownOnLabel = false;
-                isDraggingForRotation = false;
-                controls.enabled = true; // Re-enable controls
-            } else {
-                 // No valid move detected from drag direction/face combo
-                 // Optionally reset state here too if needed
-            }
+    if (isDraggingForRotation && dragDistance > dragThreshold) {
+        console.log("cube.js: DRAG_ROTATE_THRESHOLD crossed.");
+        const selectedFace = uiCallbacks.getSelectedFace();
+        
+        if (!selectedFace) {
+            console.warn("cube.js: Drag detected but no selected face found in UI state!");
+            pointerDownOnLabel = false;
+            isDraggingForRotation = false;
+            controls.enabled = true;
+            console.log("cube.js: OrbitControls ENABLED due to missing face during drag.");
+            return;
         }
+
+        let move = selectedFace;
+        let isPrime = false;
+        
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+            isPrime = deltaX < 0;
+        } else {
+            isPrime = deltaY < 0;
+        }
+
+        const moveNotation = move + (isPrime ? "'" : "");
+        console.log(`cube.js: Triggering move from drag: ${moveNotation}`);
+        requestMove(moveNotation);
+
+        uiCallbacks.clearFaceSelectionUI();
+        pointerDownOnLabel = false;
+        isDraggingForRotation = false;
+        console.log("cube.js: Drag move requested. Controls remain disabled until animation ends.");
     }
 }
 
-
 function onPointerUp(event) {
-    // If interaction was a drag, it should have been handled by onPointerMove
-    // If it was just a click (no significant move), we don't trigger a move here
-    if (pointerDownOnLabel && !isDraggingForRotation) {
-        // Potential place to handle simple clicks on labels if needed
-        // Currently, clicks just select the face (handled in onPointerDown/UI)
+    console.log(`cube.js: Pointer UP. pointerDownOnLabel=${pointerDownOnLabel}, isDraggingForRotation=${isDraggingForRotation}, isAnimating=${isAnimating}`);
+
+    if (pointerDownOnLabel && !isDraggingForRotation && !isAnimating) {
+        controls.enabled = true;
+        console.log("cube.js: OrbitControls ENABLED on pointer up (label click, no drag).");
+    } else if (!pointerDownOnLabel && !isAnimating) {
+        controls.enabled = true;
+        console.log("cube.js: OrbitControls ensured ENABLED on pointer up (not animating).");
     }
 
-    // Always reset flags and potentially re-enable controls on pointer up
-    if (!isAnimating) { // Don't enable controls if an animation started
-       controls.enabled = true;
-    }
     pointerDownOnLabel = false;
     isDraggingForRotation = false;
-    // Don't clear selection here, let UI handle it or next click/action
 }
 
 // --- Public Interface ---
@@ -715,4 +682,29 @@ export function requestUndo() {
 // Allow UI to check animation status
 export function getIsAnimating() {
     return isAnimating;
+}
+
+// NEW: Function to highlight a specific face label
+export function highlightFaceLabel(faceId) {
+    const label = faceLabels.find(l => l.userData.face === faceId);
+    if (label) {
+        console.log(`cube.js: Highlighting label ${faceId}`);
+        label.material.color.set(SELECTED_LABEL_COLOR);
+    } else {
+        console.warn(`cube.js: Could not find label to highlight: ${faceId}`);
+    }
+}
+
+// NEW: Function to unhighlight a specific face label
+export function unhighlightFaceLabel(faceId) {
+    const label = faceLabels.find(l => l.userData.face === faceId);
+    if (label) {
+        // Only reset if it's currently selected color
+        if (label.material.color.equals(SELECTED_LABEL_COLOR)) {
+            console.log(`cube.js: Unhighlighting label ${faceId}`);
+            label.material.color.set(COLORS.LABEL);
+        }
+    } else {
+        console.warn(`cube.js: Could not find label to unhighlight: ${faceId}`);
+    }
 }
